@@ -1,0 +1,3 @@
+[console_scripts]
+stalinra1n = stalinra1n.cli.main:main
+stalinra1n-gui = stalinra1n.gui.app:main
