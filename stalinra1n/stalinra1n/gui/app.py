@@ -380,7 +380,16 @@ class ExploitGUI:
             font=(FONT, 12, "bold"),
             state="disabled",
         )
-        self.btn_loader.pack(side="left")
+        self.btn_loader.pack(side="left", padx=(0, 6))
+
+        self.btn_jailbreak = ctk.CTkButton(
+            post_btn_frame, text="Full Jailbreak",
+            command=self._on_jailbreak,
+            fg_color=COLORS["success"], hover_color="#1a7f37",
+            font=(FONT, 12, "bold"),
+            state="disabled",
+        )
+        self.btn_jailbreak.pack(side="left")
 
         self.post_label = ctk.CTkLabel(
             post_card, text="Run exploit first",
@@ -492,6 +501,41 @@ class ExploitGUI:
             font=(FONT, 12, "bold"),
         )
         self.btn_build_bootstrap.grid(row=0, column=1, padx=12, pady=8, sticky="e")
+
+        jb_card = self._card(frame, "Jailbreak Deployment", 3, 0)
+        jb_card.grid_columnconfigure(1, weight=1)
+
+        row = 0
+        for cfg_key, cfg_label, cfg_default, cfg_type in [
+            ("package_manager", "Package manager", "sileo", str),
+            ("boot_args", "Boot arguments", "-v keepsyms=1 amfi=0x0", str),
+            ("skip_loader", "Skip loader app install", False, bool),
+        ]:
+            lbl = ctk.CTkLabel(
+                jb_card, text=cfg_label,
+                font=(FONT, 12), text_color=COLORS["text"],
+                anchor="w",
+            )
+            lbl.grid(row=row, column=0, padx=12, pady=6, sticky="w")
+
+            if cfg_type == bool:
+                var = ctk.BooleanVar(value=cfg_default)
+                cb = ctk.CTkCheckBox(
+                    jb_card, text="", variable=var,
+                    fg_color=COLORS["accent"],
+                )
+                cb.grid(row=row, column=1, padx=12, pady=6, sticky="e")
+                setattr(self, f"_setting_{cfg_key}", var)
+            else:
+                var = ctk.StringVar(value=cfg_default)
+                entry = ctk.CTkEntry(
+                    jb_card, textvariable=var,
+                    font=(FONT, 12), width=200,
+                    fg_color=COLORS["bg"], border_color=COLORS["border"],
+                )
+                entry.grid(row=row, column=1, padx=12, pady=6, sticky="e")
+                setattr(self, f"_setting_{cfg_key}", var)
+            row += 1
 
     def _show_about(self):
         self._clear_content()
@@ -710,6 +754,7 @@ class ExploitGUI:
             self.root.after(0, lambda: self.btn_demote.configure(state="normal"))
             self.root.after(0, lambda: self.btn_boot.configure(state="normal"))
             self.root.after(0, lambda: self.btn_loader.configure(state="normal"))
+            self.root.after(0, lambda: self.btn_jailbreak.configure(state="normal"))
             self.root.after(0, lambda: self.post_label.configure(text="Ready for payload injection", text_color=COLORS["success"]))
         else:
             self.root.after(0, lambda: self.exploit_label.configure(text="Exploit failed", text_color=COLORS["error"]))
@@ -872,19 +917,63 @@ class ExploitGUI:
 
     def _on_build_bootstrap(self):
         log.info("Building bootstrap package...")
-        scripts = Path(__file__).parent.parent.parent / "device" / "scripts"
-        build_script = scripts / "build_bootstrap.sh"
-        if build_script.exists():
-            t = threading.Thread(
-                target=lambda: subprocess.run(
-                    ["bash", str(build_script)],
-                    cwd=str(build_script.parent),
-                ),
-                daemon=True,
+        t = threading.Thread(target=self._build_bootstrap_worker, daemon=True)
+        t.start()
+
+    def _build_bootstrap_worker(self):
+        try:
+            from ..core.jailbreak.bootstrap import BootstrapManager, BootstrapConfig
+            pm = self._get_setting("package_manager", "sileo")
+            mgr = BootstrapManager()
+            config = BootstrapConfig(
+                include_sileo=(pm == "sileo"),
+                include_zebra=(pm == "zebra"),
             )
-            t.start()
-        else:
-            log.info("Bootstrap build: see device/bootstrap/ directory")
+            path = mgr.build_bootstrap_package(config)
+            if path:
+                log.info(f"Bootstrap package created: {path}")
+            else:
+                log.error("Bootstrap build failed")
+        except Exception as e:
+            log.error(f"Bootstrap build error: {e}")
+
+    def _on_jailbreak(self):
+        t = threading.Thread(target=self._jailbreak_worker, daemon=True)
+        t.start()
+
+    def _jailbreak_worker(self):
+        try:
+            from ..core.jailbreak.deploy import JailbreakDeployer, JailbreakConfig
+            config = JailbreakConfig(
+                package_manager=self._get_setting("package_manager", "sileo"),
+                include_loader=not self._get_setting("skip_loader", False),
+                boot_args=self._get_setting("boot_args", "-v keepsyms=1 amfi=0x0").split(),
+                skip_exploit=True,
+                skip_demote=False,
+                auto_reboot=True,
+            )
+            self.root.after(0, lambda: self.exploit_label.configure(
+                text="Starting jailbreak deployment...", text_color=COLORS["info"]))
+            deployer = JailbreakDeployer()
+
+            def status_cb(status: str, progress: float):
+                self.root.after(0, lambda: self.progress.set(min(progress, 0.95)))
+                self.root.after(0, lambda: self.exploit_label.configure(text=status))
+                log.info(f"[{progress*100:.0f}%] {status}")
+
+            deployer.add_listener(status_cb)
+            success = deployer.run_jailbreak(config)
+            if success:
+                self.root.after(0, lambda: self.exploit_label.configure(
+                    text="Jailbreak complete!", text_color=COLORS["success"]))
+                self.root.after(0, lambda: self.progress.set(1.0))
+            else:
+                self.root.after(0, lambda: self.exploit_label.configure(
+                    text="Jailbreak failed", text_color=COLORS["error"]))
+        except Exception as e:
+            log.error(f"Jailbreak deploy error: {e}")
+            self.root.after(0, lambda: self.exploit_label.configure(
+                text=f"Error: {e}", text_color=COLORS["error"]))
 
     def _get_setting(self, key, default):
         var = getattr(self, f"_setting_{key}", None)
