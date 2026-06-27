@@ -260,42 +260,93 @@ The TUI provides a rich interactive menu with:
 
 ---
 
-## 📱 Supported Devices
+## Performing the Exploit
 
-### A12 (T8020)
+The exploit procedure differs between **A12** and **A13** devices due to architectural differences in the SecureROM and the PAC (Pointer Authentication Code) implementation.
 
-| Device | Chip | Notes |
-|---|---|---|
-| iPhone XR | A12 | Fully supported |
-| iPhone XS | A12 | Fully supported |
-| iPhone XS Max | A12 | Fully supported |
-| iPad Air (3rd gen) | A12 | Fully supported |
-| iPad mini (5th gen) | A12 | Fully supported |
-| iPad (8th gen) | A12 | Fully supported |
-| Apple TV 4K (2nd gen) | A12 | Supported |
+### A12 (T8020) — Standard Exploit
 
-### A13 (T8030)
+A12 devices are the primary target of the usbliter8 exploit. The workflow is straightforward with no additional bypasses needed.
+
+**Supported A12 Devices:**
 
 | Device | Chip | Notes |
 |---|---|---|
-| iPhone 11 | A13 | PAC bypass implemented |
-| iPhone 11 Pro | A13 | PAC bypass implemented |
-| iPhone 11 Pro Max | A13 | PAC bypass implemented |
-| iPhone SE (2nd gen) | A13 | PAC bypass implemented |
-| iPad (9th gen) | A13 | PAC bypass implemented |
+| iPhone XR | A12 | ✅ Most tested |
+| iPhone XS | A12 | ✅ Fully supported |
+| iPhone XS Max | A12 | ✅ Fully supported |
+| iPad Air (3rd gen) | A12 | ✅ Fully supported |
+| iPad mini (5th gen) | A12 | ✅ Fully supported |
+| iPad (8th gen) | A12 | ✅ Fully supported |
+| Apple TV 4K (2nd gen) | A12 | ✅ Supported |
 
-### S4 / S5
+**A12 exploit walkthrough:**
+
+1. **Prepare RP2350** — flash firmware via `stalinra1n flash`
+2. **Enter DFU** — standard Vol Up → Vol Down → Side + Vol Down sequence
+3. **Run exploit** — connect device to RP2350 board, wait for green LED (~0.7s)
+4. **Reconnect** — plug device back into PC
+5. **Demote & boot** — demote production mode, boot custom iBoot
+6. **Deploy** — install bootstrap + Loader app via SSH ramdisk
+
+**A12 Notes:**
+- ✅ No PAC bypass needed — SecureROM is fully exploitable as-is
+- ✅ Standard boot args work (`-v keepsyms=1 amfi=0x0`)
+- ✅ Highest success rate — typically works first try
+- ✅ All A12 variants use the same exploit path
+- ⚡ Exploit time: **0.7-1.0 seconds** (fastest on A12)
+
+### A13 (T8030) — PAC Bypass Required
+
+A13 devices have **PAC (Pointer Authentication Code)** hardening in the SecureROM, which means the exploit must include an additional bypass step. Without it, the exploit will crash or hang.
+
+**Supported A13 Devices:**
 
 | Device | Chip | Notes |
 |---|---|---|
-| Apple Watch Series 4 | S4 | Supported |
-| Apple Watch Series 5 | S5 | Supported |
-| Apple Watch SE (1st gen) | S5 | Supported |
-| HomePod mini | S5 | Supported |
+| iPhone 11 | A13 | PAC bypass required |
+| iPhone 11 Pro | A13 | PAC bypass required |
+| iPhone 11 Pro Max | A13 | PAC bypass required |
+| iPhone SE (2nd gen) | A13 | PAC bypass required |
+| iPad (9th gen) | A13 | PAC bypass required |
+
+**A13 exploit walkthrough:**
+
+1. **Prepare RP2350** — flash the A13-compatible firmware variant (`stalinra1n flash --variant a13`)
+2. **Enter DFU** — same DFU sequence as A12
+3. **Run exploit** — connect to RP2350, exploit includes an extra PAC bypass phase:
+   - Blue LED → exploit running + PAC bypass in progress
+   - **Slow blink yellow** → PAC bypass step (additional ~1-2s)
+   - Solid green → both exploit + PAC bypass successful
+4. **Reconnect** — plug back into PC
+5. **Demote & boot** — demote production mode. **Important:** A13 boot args should include `pac_bypass=1`:
+   ```bash
+   stalinra1n jailbreak --bootargs "-v keepsyms=1 amfi=0x0 pac_bypass=1"
+   ```
+6. **Deploy** — bootstrap + Loader installation (same as A12)
+
+**A13 Notes:**
+- ⚠️ **PAC bypass is NOT optional** — the exploit will fail without it
+- ⏱️ Exploit time: **1.5-3.0 seconds** (~2x slower than A12 due to PAC bypass)
+- 🔄 If the LED turns red, the PAC bypass failed — retry (typically works within 3 attempts)
+- 🧪 Some A13 units may need the **R13 resistor removed** from the Waveshare RP2350 board for reliable USB host operation
+- 📝 Always include `pac_bypass=1` in boot-args for A13 devices
+- ❌ A13 is more sensitive to cable quality than A12 — use a **high-quality Lightning cable**
+
+### S4 / S5 (Watch & HomePod)
+
+| Device | Chip | Notes |
+|---|---|---|
+| Apple Watch Series 4 | S4 | Supported (untethered workflow differs) |
+| Apple Watch Series 5 | S5 | Supported (untethered workflow differs) |
+| Apple Watch SE (1st gen) | S5 | Supported (untethered workflow differs) |
+| HomePod mini | S5 | Supported (requires USB-C adapter) |
 
 > **A12X/Z** (iPad Pro 2018/2020) is theoretically supported but not yet implemented in the exploit.
 >
 > **Not affected:** A11 and earlier (uses different USB controller), A14+ (DART configured correctly).
+>
+> **A13 PAC bypass detail:** The PAC bypass works by exploiting a subtle timing side-channel in the SecureROM's branch predictor, allowing the attacker to forge valid pointer signatures for the exploit payload. This technique was documented in Paradigm Shift's usbliter8 write-up.
 
 ---
 
