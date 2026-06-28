@@ -207,6 +207,7 @@ class ExploitGUI:
 
         self._build_status_bar(main)
         self._build_content(main)
+        self._build_footer(main)
 
     def _build_footer(self, parent):
         footer = ctk.CTkFrame(parent, height=32, fg_color=COLORS["fg"])
@@ -283,7 +284,7 @@ class ExploitGUI:
             board_card, text="No board detected",
             font=(FONT, 12), text_color=COLORS["text_dim"],
         )
-        self.board_label.grid(row=0, column=0, padx=12, pady=8, sticky="w")
+        self.board_label.grid(row=1, column=0, padx=12, pady=8, sticky="w")
 
         self.btn_flash = ctk.CTkButton(
             board_card, text="Flash Firmware",
@@ -292,13 +293,13 @@ class ExploitGUI:
             font=(FONT, 12, "bold"),
             width=140,
         )
-        self.btn_flash.grid(row=0, column=1, padx=12, pady=8, sticky="e")
+        self.btn_flash.grid(row=1, column=1, padx=12, pady=8, sticky="e")
         row += 1
 
         dfu_card = self._card(frame, "DFU Mode", row, 0)
         dfu_card.grid_columnconfigure(1, weight=1)
         dfu_btn_frame = ctk.CTkFrame(dfu_card, fg_color="transparent")
-        dfu_btn_frame.grid(row=0, column=1, padx=12, pady=8, sticky="e")
+        dfu_btn_frame.grid(row=1, column=1, padx=12, pady=8, sticky="e")
 
         self.btn_dfu_guide = ctk.CTkButton(
             dfu_btn_frame, text="Show DFU Guide",
@@ -320,7 +321,7 @@ class ExploitGUI:
             dfu_card, text="Not in DFU mode",
             font=(FONT, 12), text_color=COLORS["text_dim"],
         )
-        self.dfu_label.grid(row=0, column=0, padx=12, pady=8, sticky="w")
+        self.dfu_label.grid(row=1, column=0, padx=12, pady=8, sticky="w")
         row += 1
 
         exploit_card = self._card(frame, "Exploit", row, 0)
@@ -334,26 +335,26 @@ class ExploitGUI:
             height=44,
             width=200,
         )
-        self.btn_exploit.grid(row=0, column=1, padx=12, pady=8, sticky="e")
+        self.btn_exploit.grid(row=1, column=1, padx=12, pady=8, sticky="e")
 
         self.exploit_label = ctk.CTkLabel(
             exploit_card, text="Ready",
             font=(FONT, 12), text_color=COLORS["text_dim"],
         )
-        self.exploit_label.grid(row=0, column=0, padx=12, pady=8, sticky="w")
+        self.exploit_label.grid(row=1, column=0, padx=12, pady=8, sticky="w")
 
         self.progress = ctk.CTkProgressBar(
             exploit_card, height=6,
             fg_color=COLORS["card"], progress_color=COLORS["info"],
         )
-        self.progress.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12, pady=(0, 12))
+        self.progress.grid(row=2, column=0, columnspan=2, sticky="ew", padx=12, pady=(0, 12))
         self.progress.set(0)
         row += 1
 
         post_card = self._card(frame, "Post-Exploitation", row, 0)
         post_card.grid_columnconfigure(1, weight=1)
         post_btn_frame = ctk.CTkFrame(post_card, fg_color="transparent")
-        post_btn_frame.grid(row=0, column=1, padx=12, pady=8, sticky="e")
+        post_btn_frame.grid(row=1, column=1, padx=12, pady=8, sticky="e")
 
         self.btn_demote = ctk.CTkButton(
             post_btn_frame, text="Demote",
@@ -372,6 +373,15 @@ class ExploitGUI:
             state="disabled",
         )
         self.btn_boot.pack(side="left", padx=(0, 6))
+
+        self.btn_splash = ctk.CTkButton(
+            post_btn_frame, text="Splash",
+            command=self._on_splash,
+            fg_color=COLORS["warning"], hover_color="#b08800",
+            font=(FONT, 12, "bold"),
+            state="disabled",
+        )
+        self.btn_splash.pack(side="left", padx=(0, 6))
 
         self.btn_loader = ctk.CTkButton(
             post_btn_frame, text="Install Loader",
@@ -395,7 +405,7 @@ class ExploitGUI:
             post_card, text="Run exploit first",
             font=(FONT, 12), text_color=COLORS["text_dim"],
         )
-        self.post_label.grid(row=0, column=0, padx=12, pady=8, sticky="w")
+        self.post_label.grid(row=1, column=0, padx=12, pady=8, sticky="w")
         row += 1
 
         log_card = self._card(frame, "Console Output", row, 0)
@@ -753,12 +763,36 @@ class ExploitGUI:
             self.root.after(0, lambda: self.exploit_label.configure(text="Device PWND!", text_color=COLORS["success"]))
             self.root.after(0, lambda: self.btn_demote.configure(state="normal"))
             self.root.after(0, lambda: self.btn_boot.configure(state="normal"))
+            self.root.after(0, lambda: self.btn_splash.configure(state="normal"))
             self.root.after(0, lambda: self.btn_loader.configure(state="normal"))
             self.root.after(0, lambda: self.btn_jailbreak.configure(state="normal"))
             self.root.after(0, lambda: self.post_label.configure(text="Ready for payload injection", text_color=COLORS["success"]))
         else:
             self.root.after(0, lambda: self.exploit_label.configure(text="Exploit failed", text_color=COLORS["error"]))
             self.root.after(0, lambda: self.progress.set(0))
+
+    def _on_splash(self):
+        from tkinter import filedialog, messagebox
+        path = filedialog.askopenfilename(
+            title="Select splash image",
+            filetypes=[("PNG images", "*.png"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+
+        t = threading.Thread(target=self._splash_worker, daemon=True, args=(path,))
+        t.start()
+
+    def _splash_worker(self, image_path: str):
+        from ..core.splash import show_splash
+        device = find_pwned_device()
+        chip_id = device.chip_id if device else ""
+        self.root.after(0, lambda: log.info(f"Sending splash: {image_path}"))
+        success = show_splash(image_path, chip_id=chip_id)
+        if success:
+            self.root.after(0, lambda: log.info("Splash screen displayed!"))
+        else:
+            self.root.after(0, lambda: log.warn("Splash screen failed"))
 
     def _on_demote(self):
         t = threading.Thread(target=self._demote_worker, daemon=True)

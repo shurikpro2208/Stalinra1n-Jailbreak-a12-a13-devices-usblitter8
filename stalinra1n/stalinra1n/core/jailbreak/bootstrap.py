@@ -10,7 +10,7 @@ from ...utils import log
 
 
 PROCURSUS_URL = "https://github.com/ProcursusTeam/Procursus/releases/latest/download/bootstrap-iphoneos-arm64.tar.gz"
-SILEO_DEB_URL = "https://github.com/Sileo/Sileo/releases/latest/download/sileo.deb"
+SILEO_DEB_URL = "https://github.com/Sileo/Sileo/releases/download/2.5.1/org.coolstar.sileo_2.5.1_iphoneos-arm64.deb"
 ZEBRA_DEB_URL = "https://apt.binger.xyz/debs/zebra.deb"
 
 

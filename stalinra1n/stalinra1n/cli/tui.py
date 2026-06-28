@@ -12,18 +12,12 @@ from ..utils import log
 
 
 BANNER = r"""
-                    __    __    __  __       __
-     |  |  |  |  | |  \  |  \  |  \ |  |  | |  \
-     |  |--|  |  | |  |  |  |  |  | |  |  | |  |
-     |  |  |  |__| |__/  |__/  |__/ \__|__/ |__/
-  __      __   __   __              __       __
-  |  \  / |  \ |  \ |  \  |  |  | |  \    |  \
-  |  |  |  |  | |  | |  |  |  |  | |  |    |  |
-  |__/   |  |__| |__/ |__/  \__|__| |__/ __|__/
-  __              __              __
-  |  \  |  |  |  |  \   |  |    |  \
-  |  |  |  |  |  |  |   |  |    |  |
-  |__/   \__|__| |__/    \__/ __|__/
+███████╗████████╗ █████╗ ██╗     ██╗███╗   ██╗██████╗  █████╗  ██╗███╗   ██╗
+██╔════╝╚══██╔══╝██╔══██╗██║     ██║████╗  ██║██╔══██╗██╔══██╗███║████╗  ██║
+███████╗   ██║   ███████║██║     ██║██╔██╗ ██║██████╔╝███████║╚██║██╔██╗ ██║
+╚════██║   ██║   ██╔══██║██║     ██║██║╚██╗██║██╔══██╗██╔══██║ ██║██║╚██╗██║
+███████║   ██║   ██║  ██║███████╗██║██║ ╚████║██║  ██║██║  ██║ ██║██║ ╚████║
+╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═╝╚═╝  ╚═══╝
 """
 
 
@@ -190,6 +184,44 @@ class InteractiveTUI:
 
         wait_for_key()
 
+    def send_splash(self):
+        print()
+        from ..core.splash import show_splash, SPLASH_DIR
+
+        device = find_pwned_device()
+        chip_id = device.chip_id if device else ""
+
+        splash_files = list(SPLASH_DIR.glob("*.png")) + list(Path(".").glob("*.png"))
+        if not splash_files:
+            print("  No splash images found.")
+            print(f"  Place a 1920x1080 PNG in {SPLASH_DIR} or the current directory")
+            print()
+            path = input("  Enter path to splash image (or Enter to skip): ").strip()
+            if not path:
+                return
+            splash_path = path
+        else:
+            print("  Available splash images:")
+            for i, f in enumerate(splash_files, 1):
+                print(f"    {i}. {f}")
+            print()
+            try:
+                choice = input("  Select image > ").strip()
+                if not choice:
+                    return
+                idx = int(choice) - 1
+                splash_path = str(splash_files[idx])
+            except (ValueError, IndexError, EOFError, KeyboardInterrupt):
+                return
+
+        animated_status(f"Sending splash: {splash_path}")
+        success = show_splash(splash_path, chip_id=chip_id)
+        if success:
+            animated_status("Splash screen displayed!", True)
+        else:
+            animated_status("Splash failed", False)
+        wait_for_key()
+
     def flash_board(self):
         print()
         fw_path = get_firmware_path()
@@ -280,6 +312,7 @@ class InteractiveTUI:
                 ("exploit", "Run exploit (full workflow)", self.run_exploit),
                 ("demote", "Demote production mode", self.demote_device),
                 ("boot", "Boot payload (iBoot/ramdisk)", self.boot_iboot),
+                ("splash", "Send splash screen to device", self.send_splash),
                 ("flash", "Flash RP2350 board firmware", self.flash_board),
                 ("fetch", "Fetch latest firmware from GitHub", self.fetch_firmware),
                 ("status", "Show device status", self.show_device_status),
