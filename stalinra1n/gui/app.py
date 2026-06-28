@@ -374,6 +374,15 @@ class ExploitGUI:
         )
         self.btn_boot.pack(side="left", padx=(0, 6))
 
+        self.btn_splash = ctk.CTkButton(
+            post_btn_frame, text="Splash",
+            command=self._on_splash,
+            fg_color=COLORS["warning"], hover_color="#b08800",
+            font=(FONT, 12, "bold"),
+            state="disabled",
+        )
+        self.btn_splash.pack(side="left", padx=(0, 6))
+
         self.btn_loader = ctk.CTkButton(
             post_btn_frame, text="Install Loader",
             command=self._on_install_loader,
@@ -754,12 +763,36 @@ class ExploitGUI:
             self.root.after(0, lambda: self.exploit_label.configure(text="Device PWND!", text_color=COLORS["success"]))
             self.root.after(0, lambda: self.btn_demote.configure(state="normal"))
             self.root.after(0, lambda: self.btn_boot.configure(state="normal"))
+            self.root.after(0, lambda: self.btn_splash.configure(state="normal"))
             self.root.after(0, lambda: self.btn_loader.configure(state="normal"))
             self.root.after(0, lambda: self.btn_jailbreak.configure(state="normal"))
             self.root.after(0, lambda: self.post_label.configure(text="Ready for payload injection", text_color=COLORS["success"]))
         else:
             self.root.after(0, lambda: self.exploit_label.configure(text="Exploit failed", text_color=COLORS["error"]))
             self.root.after(0, lambda: self.progress.set(0))
+
+    def _on_splash(self):
+        from tkinter import filedialog, messagebox
+        path = filedialog.askopenfilename(
+            title="Select splash image",
+            filetypes=[("PNG images", "*.png"), ("All files", "*.*")],
+        )
+        if not path:
+            return
+
+        t = threading.Thread(target=self._splash_worker, daemon=True, args=(path,))
+        t.start()
+
+    def _splash_worker(self, image_path: str):
+        from ..core.splash import show_splash
+        device = find_pwned_device()
+        chip_id = device.chip_id if device else ""
+        self.root.after(0, lambda: log.info(f"Sending splash: {image_path}"))
+        success = show_splash(image_path, chip_id=chip_id)
+        if success:
+            self.root.after(0, lambda: log.info("Splash screen displayed!"))
+        else:
+            self.root.after(0, lambda: log.warn("Splash screen failed"))
 
     def _on_demote(self):
         t = threading.Thread(target=self._demote_worker, daemon=True)

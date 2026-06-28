@@ -252,6 +252,16 @@ def cmd_build_ramdisk(args):
     return 1
 
 
+def cmd_splash(args):
+    from ..core.splash import show_splash, SPLASH_PATH
+
+    image_path = args.image or SPLASH_PATH
+    device = find_pwned_device()
+    chip_id = device.chip_id if device else ""
+    success = show_splash(image_path, chip_id=chip_id)
+    return 0 if success else 1
+
+
 def cmd_iboot_patch(args):
     patcher = iBootPatcher()
     iboot_path = Path(args.iboot)
@@ -322,6 +332,9 @@ def build_parser():
     p_rd.add_argument("--no-loader", action="store_true", help="Skip loader app")
     p_rd.add_argument("--no-bootstrap", action="store_true", help="Skip bootstrap")
 
+    p_splash = sub.add_parser("splash", help="Send splash screen to device")
+    p_splash.add_argument("image", type=str, nargs="?", default="", help="Path to PNG image (1920x1080, pre-rotated for portrait)")
+
     p_iboot = sub.add_parser("iboot-patch", help="Patch iBoot image")
     p_iboot.add_argument("iboot", type=str, help="Path to iBoot image")
     p_iboot.add_argument("--patches", type=str, nargs="*",
@@ -363,6 +376,8 @@ def main():
         return cmd_fetch_ipsw(args)
     elif args.command == "build-ramdisk":
         return cmd_build_ramdisk(args)
+    elif args.command == "splash":
+        return cmd_splash(args)
     elif args.command == "iboot-patch":
         return cmd_iboot_patch(args)
     else:
